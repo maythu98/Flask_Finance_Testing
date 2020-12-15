@@ -1,0 +1,33 @@
+{% extends('layout.html') %}
+
+{% block title %}
+    History
+{% endblock %}
+
+{% block main %}
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Symbol</th>
+                <th>Shares</th>
+                <th>Price</th>
+                <th>Transacted</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for share in shares %}
+            <tr>
+                <td> {{ share['symbol'] }} </td>
+                <td> 
+                    {% if share['type'] == 2 %} 
+                        -
+                    {% endif %}
+                    {{ share['share'] }} 
+                </td>
+                <td> ${{ share['total_price'] }} </td>
+                <td> {{ share['created_at'] }} </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}
