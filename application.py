@@ -47,10 +47,12 @@ def index():
     """Show portfolio of stocks"""
     user_id = session['user_id']
 
-    shares = db.execute("SELECT sum(share) as shares, sum(total_price) as total_price, symbol, name, buy_price FROM shares WHERE user_id=:id AND type = 1 GROUP BY symbol", id=user_id)
+    shares = db.execute("SELECT * FROM user_shares WHERE user_id=:id", id=user_id)
 
-    total_price = db.execute("SELECT sum(total_price) as total_price FROM shares WHERE user_id=:id AND type = 1", id=user_id)
+    total_price = db.execute("SELECT sum(total_price) as total_price FROM user_shares WHERE user_id=:id", id=user_id)
     total_share_value = total_price[0].get('total_price')
+    if not total_share_value:
+        total_share_value = 0
 
     user_cash = db.execute("SELECT cash FROM users WHERE id=:id limit 1", id=user_id)
     user_cash = user_cash[0].get('cash')
@@ -90,13 +92,27 @@ def buy():
         if user_cash < total_price:
             return apology("Can Not Afford")
 
-        # update user cash
-        cash = user_cash - total_price
-        db.execute("UPDATE users SET cash=:cash WHERE id=:user_id", cash=cash, user_id=user_id)
-
         # Buy Share
         now = datetime.datetime.now()
-        db.execute("INSERT INTO shares (user_id, type, symbol, name, share, buy_price, total_price, created_at, updated_at) VALUES (:user_id, :type, :symbol, :name, :share, :buy_price, :total_price, :created_at, :updated_at)", user_id=user_id, type=1, symbol=symbol, name=company_name, share=share, buy_price=share_price, total_price=total_price, created_at=now, updated_at=now)
+        #Add share to user_share
+        current_user_share = db.execute("SELECT * FROM user_shares WHERE user_id=:user_id AND symbol=:symbol", user_id=user_id, symbol=symbol)
+        if not current_user_share:
+            db.execute("INSERT INTO user_shares (user_id, symbol, name, share, price, total_price) VALUES (:user_id, :symbol, :name, :share, :price, :total_price)", user_id=user_id, symbol=symbol, name=company_name, share=share, price=share_price, total_price=total_price)
+
+            current_user_share = db.execute("SELECT * FROM user_shares WHERE user_id=:user_id AND symbol=:symbol", user_id=user_id, symbol=symbol)
+            share_id = current_user_share[0].get('id')
+        else:
+            share_id = current_user_share[0].get('id')
+            current_share = current_user_share[0].get('share')
+            total_share = current_share + int(share)
+            db.execute("UPDATE user_shares SET share=:total_share, price=:price, total_price=:total_price WHERE user_id=:user_id AND symbol=:symbol", user_id=user_id, symbol=symbol, price=share_price, total_price=total_price, total_share=total_share)
+        
+        #Record Share Record
+        db.execute("INSERT INTO share_histories (user_share_id, type, share, price, total_price, created_at) VALUES (:user_share_id, :type, :share, :price, :total_price, :created_at)", user_share_id=share_id, type=1, share=share, price=share_price, total_price=total_price, created_at=now)
+
+         # update user cash
+        cash = user_cash - total_price
+        db.execute("UPDATE users SET cash=:cash WHERE id=:user_id", cash=cash, user_id=user_id)
 
         return redirect('/')
 
@@ -105,7 +121,8 @@ def buy():
 @login_required
 def history():
     """Show history of transactions"""
-    shares = db.execute("SELECT * FROM shares WHERE user_id=:id", id=session['user_id'])
+    shares = db.execute("SELECT us.symbol as symbol, sh.type as type, sh.share as share, sh.total_price as total_price FROM share_histories as sh JOIN user_shares as us WHERE us.id = sh.user_share_id AND us.user_id=:id", id=session['user_id'])
+
     return render_template("history.html", shares = shares)
 
 
@@ -168,7 +185,6 @@ def quote():
             return apology("must provide quote", 403)  
         info = lookup(quote)
         return render_template('quoted.html', info=info)
-
 
 
 @app.route("/register", methods=["GET", "POST"])
@@ -263,5 +279,8 @@ for code in default_exceptions:
 
 # export FLASK_APP=application.py
 # export API_KEY=pk_18958ff3937e4d6e89f0986c09f0d9d6
-# CREATE TABLE shares (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, user_id INTEGER NOT NULL, type INTEGER NOT NULL, symbol VARCHAR(255) NOT NULL, name VARCHAR(255), share INTEGER NOT NULL, buy_price DOUBLE(10, 2), sell_price DOUBLE(10, 2), total_price DOUBLE(10,2), created_at DATETIME, updated_at DATETIME);
-# CREATE INDEX 'symbol' ON 'shares' ('symbol');
+# CREATE TABLE user_shares (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, user_id INTEGER NOT NULL, symbol VARCHAR(255) NOT NULL, name VARCHAR(255), share INTEGER NOT NULL, price DOUBLE(10, 2), total_price DOUBLE(10,2));
+# CREATE INDEX 'symbol' ON 'user_shares' ('symbol');
+
+# CREATE TABLE share_histories (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, user_share_id INTEGER NOT NULL, type INTEGER NOT NULL, share INTEGER NOT NULL, price DOUBLE(10, 2), total_price DOUBLE(10,2), created_at DATETIME);
+# CREATE UNIQUE INDEX 'user_share_id' ON 'share_histories' ('user_share_id');
