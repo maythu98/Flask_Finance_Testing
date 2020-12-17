@@ -223,7 +223,7 @@ def sell():
     user_id = session['user_id']
     """Sell shares of stock"""
     if request.method == "GET":
-        symbols = db.execute("SELECT symbol FROM shares WHERE user_id=:user_id AND type = 1 GROUP BY symbol", user_id=user_id)
+        symbols = db.execute("SELECT symbol FROM user_shares WHERE user_id=:user_id", user_id=user_id)
         return render_template('sell.html', symbols=symbols)
     else:
         symbol = request.form.get('symbol')
@@ -234,10 +234,12 @@ def sell():
         if not share:
             return apology("must have share", 403)
         # too much share
-        current_share = db.execute("SELECT sum(share) as shares FROM shares WHERE user_id=:user_id AND type = 1 AND symbol=:symbol", user_id=user_id, symbol=symbol)
+        current_user_share = db.execute("SELECT id, share FROM user_shares WHERE user_id=:user_id AND symbol=:symbol", user_id=user_id, symbol=symbol)
+        if not current_user_share:
+            return apology("Does not Have this share!", 400)
 
-        current_share = current_share[0].get('shares')
-
+        current_share = current_user_share[0].get('share')
+        user_share_id = current_user_share[0].get('id')
         current_share = int(current_share)
         share = int(share)
         if share > current_share:
@@ -248,19 +250,24 @@ def sell():
         if not share_market:
             return apology("Invalid Symbol", 403)
 
-        sell_price = share_market['price']
+        share_price = share_market['price']
         company_name = share_market['name']
-        total_price = sell_price * float(share)
+        total_price = share_price * float(share)
 
-        # update user cash
+        # Buy Share
+        #REduce From current user_shares
+        final_share = current_share - share
+        db.execute("UPDATE user_shares SET share=:final_share AND price=:price AND final_price=:final_price WHERE id=:user_share_id", user_share_id=user_share_id, final_share=final_share, price=share_price, total_price=total_price)
+        
+        #share history
+        now = datetime.datetime.now()
+        db.execute("INSERT INTO share_histories (user_share_id, type, share, price, total_price, created_at) VALUES (:user_share_id, :type, :share, :price, :total_price, :created_at)", user_share_id=user_share_id, type=2, share=share, price=share_price, total_price=total_price, created_at=now)
+
+         # update user cash
         users = db.execute("SELECT cash FROM users WHERE id=:user_id", user_id=user_id)
         user_cash = users[0].get('cash')
         cash = user_cash + total_price
         db.execute("UPDATE users SET cash=:cash WHERE id=:user_id", cash=cash, user_id=user_id)
-
-        # Buy Share
-        now = datetime.datetime.now()
-        db.execute("INSERT INTO shares (user_id, type, symbol, name, share, sell_price, total_price, created_at, updated_at) VALUES (:user_id, :type, :symbol, :name, :share, :sell_price, :total_price, :created_at, :updated_at)", user_id=user_id, type=2, symbol=symbol, name=company_name, share=share, sell_price=sell_price, total_price=total_price, created_at=now, updated_at=now)
         
         return redirect('/')
 
@@ -283,4 +290,4 @@ for code in default_exceptions:
 # CREATE INDEX 'symbol' ON 'user_shares' ('symbol');
 
 # CREATE TABLE share_histories (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, user_share_id INTEGER NOT NULL, type INTEGER NOT NULL, share INTEGER NOT NULL, price DOUBLE(10, 2), total_price DOUBLE(10,2), created_at DATETIME);
-# CREATE UNIQUE INDEX 'user_share_id' ON 'share_histories' ('user_share_id');
+# CREATE INDEX 'user_share_id' ON 'share_histories' ('user_share_id');
