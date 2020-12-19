@@ -56,8 +56,11 @@ def index():
 
     user_cash = db.execute("SELECT cash FROM users WHERE id=:id limit 1", id=user_id)
     user_cash = user_cash[0].get('cash')
-
+    
     total_value = total_share_value + user_cash
+
+    user_cash = "{0:.2f}".format(user_cash)
+    total_value = "{0:.2f}".format(total_value)
 
     return render_template('index.html', user_cash=user_cash, shares=shares, total_value=total_value)
 
@@ -121,7 +124,7 @@ def buy():
 @login_required
 def history():
     """Show history of transactions"""
-    shares = db.execute("SELECT us.symbol as symbol, sh.type as type, sh.share as share, sh.total_price as total_price FROM share_histories as sh JOIN user_shares as us WHERE us.id = sh.user_share_id AND us.user_id=:id", id=session['user_id'])
+    shares = db.execute("SELECT us.symbol as symbol, sh.type, sh.share, sh.total_price as total_price, sh.created_at as created_at FROM share_histories as sh JOIN user_shares as us WHERE us.id = sh.user_share_id AND us.user_id=:id Order By sh.created_at desc", id=session['user_id'])
 
     return render_template("history.html", shares = shares)
 
@@ -183,7 +186,11 @@ def quote():
         quote = request.form.get('name')
         if not quote:
             return apology("must provide quote", 403)  
+        
         info = lookup(quote)
+        if not info:
+            return apology("Invalid Quote", 403)
+
         return render_template('quoted.html', info=info)
 
 
@@ -197,8 +204,10 @@ def register():
         pwd     = request.form.get('password')
         if not name:
             return apology("must provide username", 403)
+        
         if not pwd:
             return apology("must provide password", 403)
+        
         if not request.form.get('confirmpassword'):
             return apology("must provide confirm-password", 403)
 
@@ -234,11 +243,13 @@ def sell():
         if not share:
             return apology("must have share", 403)
         # too much share
-        current_user_share = db.execute("SELECT id, share FROM user_shares WHERE user_id=:user_id AND symbol=:symbol", user_id=user_id, symbol=symbol)
+        current_user_share = db.execute("SELECT id, share, total_price FROM user_shares WHERE user_id=:user_id AND symbol=:symbol", user_id=user_id, symbol=symbol)
         if not current_user_share:
             return apology("Does not Have this share!", 400)
 
         current_share = current_user_share[0].get('share')
+        current_total_price = current_user_share[0].get('total_price')
+        current_total_price = float(current_total_price)
         user_share_id = current_user_share[0].get('id')
         current_share = int(current_share)
         share = int(share)
@@ -252,12 +263,15 @@ def sell():
 
         share_price = share_market['price']
         company_name = share_market['name']
-        total_price = share_price * float(share)
+        total_price = float(share_price) * float(share)
 
         # Buy Share
         #REduce From current user_shares
         final_share = current_share - share
-        db.execute("UPDATE user_shares SET share=:final_share AND price=:price AND final_price=:final_price WHERE id=:user_share_id", user_share_id=user_share_id, final_share=final_share, price=share_price, total_price=total_price)
+        final_total_price = current_total_price - total_price
+        print("total final share", final_share)
+        print( "final Total price", final_total_price)
+        db.execute("UPDATE user_shares SET share=:final_share, price=:price, total_price=:total_price WHERE id=:user_share_id", user_share_id=user_share_id, final_share=final_share, price=share_price, total_price=final_total_price)
         
         #share history
         now = datetime.datetime.now()

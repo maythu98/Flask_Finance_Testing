@@ -22,7 +22,7 @@
                 <td> {{ share['name'] }} </td>
                 <td> {{ share['share'] }} </td>
                 <td> {{ share['price'] }} </td>
-                <td> ${{ share['total_price'] }} </td>
+                <td> ${{ "{0:.2f}".format(share['total_price']) }} </td>
             </tr>
             {% endfor %}
             <tr>
