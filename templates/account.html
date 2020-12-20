@@ -1,0 +1,47 @@
+{% extends('layout.html') %}
+
+{% block title %}
+    My Account
+{% endblock %}
+{% block main %}
+    <div class="text-left">
+        <p class="text-left"> User Name: <b> {{ user['username'] }} </b> </p>
+        <p class="text-left"> 
+            Current Cash: <b> $ {{ "{0:.2f}".format(user['cash']) }} </b>
+        </p>
+        <form action="/add-cash" method="POST">
+            <input type="hidden" name="current_cash" value="{{ user['cash'] }}">
+            <input type="number" class="form-control" name="cash" placeholder="Type Cash" autofocus>
+            <button type="submit" class="btn btn-success">Add Cash</button>
+        </form>
+        
+        <hr>
+        <form action="/account" method="POST">
+            <h3>User Info</h3>
+            <div class="row form-group">
+                <label class="col-12"> Old Password </label>
+                <div class="col-12">
+                    <input type="password" class="form-control" name="oldpwd" placeholder="Type Old Password">
+                </div>
+            </div>
+            <div class="row form-group">
+                <label for="" class="col-12"> Change Password </label>
+                <div class="col-12">
+                    <input type="password" class="form-control" name="pwd" placeholder="Type Change Password">
+                </div>
+            </div>
+            <div class="row form-group">
+                <label for="" class="col-12"> Confirm Change-Password </label>
+                <div class="col-12">
+                    <input type="password" class="form-control" name="confirmpwd" placeholder="Type Confirm Passwrod">
+                </div>
+            </div>
+    
+            <input type="submit" value="Update" class="col-3 btn btn-primary"> 
+        </form>
+        <hr>
+
+
+    </div>
+
+{% endblock %}

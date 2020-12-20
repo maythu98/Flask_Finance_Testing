@@ -137,7 +137,6 @@ def login():
 
     # User reached route via POST (as by submitting a form via POST)
     if request.method == "POST":
-
         # Ensure username was submitted
         if not request.form.get("username"):
             return apology("must provide username", 403)
@@ -155,7 +154,8 @@ def login():
             return apology("invalid username and/or password", 403)
 
         # Remember which user has logged in
-        session["user_id"] = rows[0]["id"]
+        session["user_id"] = rows[0].get('id')
+        session["user_name"] = rows[0].get('username')
 
         # Redirect user to home page
         return redirect("/")
@@ -174,6 +174,56 @@ def logout():
 
     # Redirect user to login form
     return redirect("/")
+
+
+@app.route("/account", methods=["GET", "POST"])
+@login_required
+def account():
+    user_id = session['user_id']
+    user = db.execute("SELECT * FROM users WHERE id=:id", id=user_id)
+    user = user[0]
+    if request.method == "GET":
+        return render_template("account.html", user=user)
+    else:
+        # password update
+        oldpwd = request.form.get('oldpwd')
+        pwd = request.form.get('pwd')
+        confirmpwd = request.form.get('confirmpwd')
+        if pwd:
+            if not oldpwd:
+                return apology("must provide old password", 403)
+            
+            if not check_password_hash(user["hash"], oldpwd):
+                return apology("Must Provide Valid Old Password", 403)
+
+            if not confirmpwd:
+                return apology("must provide confirm passwrod", 403)
+
+            if oldpwd != confirmpwd:
+                return apology("must provider same confirm passwrod", 403)
+
+        pwd = generate_password_hash(pwd)
+        db.execute("UPDATE users SET hash=:pwd WHERE id=:user_id", pwd=pwd, user_id=user_id)
+
+        return redirect("/account")
+
+        
+
+@app.route("/add-cash", methods=["POST"])
+@login_required
+def addCash():
+    cash = request.form.get('cash')
+    if not cash:
+        return apology("must provide cash", 403)
+    
+    current_cash = request.form.get('current_cash')
+
+    total_cash = float(current_cash) + float(cash)
+
+    db.execute("UPDATE users SET cash=:total_cash WHERE id=:user_id", total_cash=total_cash, user_id=session['user_id'])
+
+    return redirect("/account")
+
 
 
 @app.route("/quote", methods=["GET", "POST"])
@@ -220,7 +270,8 @@ def register():
                           username=name)
 
         # Remember which user has logged in
-        session["user_id"] = rows[0]["id"]
+        session["user_id"] = rows[0].get('id')
+        session["user_name"] = rows[0].get('username')
 
         # Redirect user to home page
         return redirect("/")
